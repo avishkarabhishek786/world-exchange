@@ -4,9 +4,11 @@ pragma solidity ^0.8.10;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Stocks.sol";
 import "./StockExchange.sol";
+import "./AdminWallet.sol";
 
 contract StocksFactory is Ownable {
 
+    address payable immutable public adminWallet;
     uint public stocksCount;
 
     struct StockData {
@@ -17,12 +19,23 @@ contract StocksFactory is Ownable {
 
     mapping(bytes=>StockData) private stocksList;
 
+    event NewStock(string name, string symbol, address stock, address exchange);
+
+    constructor(address payable _adminWallet) {
+        adminWallet = _adminWallet;
+    }
+
+    function getAdminWallet() public view returns (address payable) {
+        return adminWallet;
+    }
+
     function createStocks(string memory _name, string memory _symbol, address _usdc) external payable onlyOwner {
         // check for already existing token symbol as well
         require(address(stocksList[bytes(_symbol)].stocks)==address(0), "Stock already exists.");
         IStocks newStock = new Stocks(_name, _symbol, address(this), owner());
-        IStockExchange tokenExchange = new StockExchange(address(newStock), _usdc);
+        IStockExchange tokenExchange = new StockExchange(address(newStock), _usdc, owner(), getAdminWallet());
         stocksList[bytes(_symbol)] = StockData(newStock, tokenExchange, true);
+        emit NewStock(_name, _symbol, address(newStock), address(tokenExchange));
         stocksCount++;
     }
 

@@ -2,9 +2,11 @@
 pragma solidity ^0.8.10;
 
 interface IStockExchange {
-    function getStockPrice() external pure returns (uint);
 
-    function buy(uint paymentAmount) external;
+    function getStockPrice(uint256 oraclePrice, bytes memory signature, uint256 nonce) external view returns (uint);
 
-    function sell(uint sellAmount) external;
+    function buy(uint paymentAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) external;
+
+    function sell(uint sellAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) external;
+
 }
