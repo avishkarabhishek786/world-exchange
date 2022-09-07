@@ -19,8 +19,6 @@ contract('StockExchange', (accounts) => {
     
     const [deployer, buyer1, buyer2, seller1, seller2] = accounts;
 
-    console.log(deployer);
-
     let StocksFactoryContract, GoogStocksContract, GoogStockExchangeContract, 
     AdminWalletContract, TetherContract, VerifySignerContract, googStock, applStock, googAddr, 
     googExchangeAddr, tetherBalanceBuyer1, tetherBalanceBuyer2, tetherBalanceSeller1,
@@ -91,8 +89,22 @@ contract('StockExchange', (accounts) => {
             let signer = accounts[0];
 
             //console.log("signer.address", signer.address);
+
+            const stockSymbol = await GoogStocksContract.symbol();
+
+            expect(stockSymbol, "GOOG", "Symbol not same");
+
+            let fetchRes = await fetch("https://api.khubero.com/marketprice");
                 
-            const hash = await GoogStockExchangeContract.getMessageHash("GOOG", 100, 123)
+            let price = await fetchRes.json()
+
+            price = price.filter(f=>f.symbol==stockSymbol).map(m=>m.price)[0];
+
+            expect(price).to.be.a('number');
+
+            price = price * 10000;
+                
+            const hash = await GoogStockExchangeContract.getMessageHash(stockSymbol, price, 123)
             const sig = await signer.signMessage(ethers.utils.arrayify(hash))
 
             const ethHash = await GoogStockExchangeContract.getEthSignedMessageHash(hash)
@@ -100,8 +112,8 @@ contract('StockExchange', (accounts) => {
             //console.log("signer          ", signer.address)
             //console.log("recoverVerifySignered signer", await GoogStockExchangeContract.recoverSigner(ethHash, sig))
 
-            const stcokPrice = await GoogStockExchangeContract.getStockPrice(100,sig,123)  
-            stcokPrice.should.be.bignumber.eq(bn('100'))
+            const stcokPrice = await GoogStockExchangeContract.getStockPrice(price,sig,123)  
+            stcokPrice.should.be.bignumber.eq(bn(price))
 
             //console.log(String(await GoogStockExchangeContract.getStockPrice(100,sig,123)));
         })
