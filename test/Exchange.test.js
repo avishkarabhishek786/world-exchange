@@ -22,7 +22,9 @@ contract('StockExchange', (accounts) => {
     let StocksFactoryContract, GoogStocksContract, GoogStockExchangeContract, 
     AdminWalletContract, TetherContract, VerifySignerContract, googStock, applStock, googAddr, 
     googExchangeAddr, tetherBalanceBuyer1, tetherBalanceBuyer2, tetherBalanceSeller1,
-    tetherBalanceSeller2, oracleWallet
+    tetherBalanceSeller2, oracleWallet;
+
+    const DECIMALS = 10 ** 6;
 
     //const OracleRandWallet = ethers.Wallet.createRandom();
     //const OraclePrivateKey = OracleRandWallet.privateKey
@@ -35,6 +37,17 @@ contract('StockExchange', (accounts) => {
     function toWei(amount) {
         return String(ethers.utils.parseEther(String(amount)))
     }
+
+    function toDecimal6(amount) {
+        return String(ethers.utils.parseUnits(String(amount), 6))
+    }
+
+    function shouldEqualApprox(x, y, acceptable_diff=1) {
+        const diff = x.sub(y).abs(); 
+        const diffPct = (diff.mul(bn(100))).div(x);
+        acceptable_diff = bn(acceptable_diff);
+        diffPct.should.be.bignumber.lte(acceptable_diff)
+     }
 
     before(async()=>{
         AdminWalletContract = await AdminWallet.new({from:deployer})
@@ -49,14 +62,14 @@ contract('StockExchange', (accounts) => {
     describe('testing exchange functionality', ()=>{
 
         it('buyer1 and buyer2 have tether balance', async () => {
-            await TetherContract.mint(buyer1, toWei(1000), {from:buyer1})
-            await TetherContract.mint(buyer2, toWei(1000), {from:buyer2})
+            await TetherContract.mint(buyer1, toDecimal6(2000), {from:buyer1})
+            await TetherContract.mint(buyer2, toDecimal6(2000), {from:buyer2})
 
             tetherBalanceBuyer1 = String(await TetherContract.balanceOf(buyer1))
             tetherBalanceBuyer2 = String(await TetherContract.balanceOf(buyer2))
 
-            tetherBalanceBuyer1.should.be.bignumber.eq(bn("1000000000000000000000"))
-            tetherBalanceBuyer2.should.be.bignumber.eq(bn("1000000000000000000000"))
+            tetherBalanceBuyer1.should.be.bignumber.eq(bn("2000000000"))
+            tetherBalanceBuyer2.should.be.bignumber.eq(bn("2000000000"))
 
         })
 
@@ -82,41 +95,107 @@ contract('StockExchange', (accounts) => {
 
         })  
 
-        it('gets correct stock price', async () => {
+        describe('testing trade functions', () => {
 
-            const accounts = await ethers.getSigners(1)
+            let stockPrice, sig, nonce;
 
-            let signer = accounts[0];
+            it('gets correct stock price', async () => {
 
-            //console.log("signer.address", signer.address);
+                const accounts = await ethers.getSigners(1)
+    
+                let signer = accounts[0];
+    
+                //console.log("signer.address", signer.address);
+    
+                const stockSymbol = await GoogStocksContract.symbol();
+    
+                expect(stockSymbol, "GOOG", "Symbol not same");
+    
+                let fetchRes = await fetch("https://api.khubero.com/marketprice");
+                    
+                let price = await fetchRes.json()
+    
+                price = price.filter(f=>f.symbol==stockSymbol).map(m=>m.price)[0];
+    
+                expect(price).to.be.a('number');
 
-            const stockSymbol = await GoogStocksContract.symbol();
+                price = price * DECIMALS;
 
-            expect(stockSymbol, "GOOG", "Symbol not same");
+                nonce = await GoogStockExchangeContract.getNonce(0, buyer1);
+                    
+                const hash = await GoogStockExchangeContract.getMessageHash(stockSymbol, price, nonce)
+                sig = await signer.signMessage(ethers.utils.arrayify(hash))
+    
+                const ethHash = await GoogStockExchangeContract.getEthSignedMessageHash(hash)
+    
+                //console.log("signer          ", signer.address)
+                //console.log("recoverVerifySignered signer", await GoogStockExchangeContract.recoverSigner(ethHash, sig))
+    
+                stockPrice = await GoogStockExchangeContract.getStockPrice(price,sig,0)  
+                stockPrice.should.be.bignumber.eq(bn(price))
 
-            let fetchRes = await fetch("https://api.khubero.com/marketprice");
+                console.log("stockPrice", String(stockPrice));
                 
-            let price = await fetchRes.json()
+            })
+    
+            it('buys GOOG stocks worth 100 Stablecoins', async () => {
 
-            price = price.filter(f=>f.symbol==stockSymbol).map(m=>m.price)[0];
+                const paymentAmount = 100 * DECIMALS;
 
-            expect(price).to.be.a('number');
+                const stockBalanceBefore = await GoogStocksContract.balanceOf(buyer1);
 
-            price = price * 10000;
+                const expectedStockOutput = bn((paymentAmount * DECIMALS) / stockPrice);
+                const expectedFees = await GoogStocksContract.fees(bn(expectedStockOutput));
+
+                const AdminWalletStockBalanceBefore = await GoogStocksContract.balanceOf(AdminWalletContract.address);
                 
-            const hash = await GoogStockExchangeContract.getMessageHash(stockSymbol, price, 123)
-            const sig = await signer.signMessage(ethers.utils.arrayify(hash))
+                // Allow googExchangeContract to spend buyer1 stablecoins
+                await TetherContract.approve(googExchangeAddr, paymentAmount, {from:buyer1})
 
-            const ethHash = await GoogStockExchangeContract.getEthSignedMessageHash(hash)
+                await GoogStockExchangeContract.buy(buyer1, paymentAmount, stockPrice, sig, nonce, {from:buyer1});
 
-            //console.log("signer          ", signer.address)
-            //console.log("recoverVerifySignered signer", await GoogStockExchangeContract.recoverSigner(ethHash, sig))
+                const stockBalanceAfter = await GoogStocksContract.balanceOf(buyer1);
 
-            const stcokPrice = await GoogStockExchangeContract.getStockPrice(price,sig,123)  
-            stcokPrice.should.be.bignumber.eq(bn(price))
+                const AdminWalletStockBalanceAfter = await GoogStocksContract.balanceOf(AdminWalletContract.address);
 
-            //console.log(String(await GoogStockExchangeContract.getStockPrice(100,sig,123)));
+                AdminWalletStockBalanceAfter.should.be.bignumber.eq(bn(AdminWalletStockBalanceBefore).add(expectedFees));
+                shouldEqualApprox(bn(expectedStockOutput), bn(stockBalanceAfter).add(expectedFees));
+                shouldEqualApprox(bn(stockBalanceBefore).add(expectedStockOutput.sub(expectedFees)), bn(stockBalanceAfter));
+
+                // Tether Balance Buyer1
+                tetherBalanceBuyer1After = await TetherContract.balanceOf(buyer1);
+                tetherBalanceBuyer1After.should.be.bignumber.eq(bn(tetherBalanceBuyer1).sub(bn(paymentAmount)));
+    
+            })
+
+            it('sells GOOG stocks', async() => {
+
+                // const sellAmount = 1 * DECIMALS;
+
+                // const stockBalanceBefore = await GoogStocksContract.balanceOf(buyer1);
+
+                // const expectedCashOutput = sellAmount * stockPrice;
+
+                // tetherBalanceBuyer1Before = String(await TetherContract.balanceOf(buyer1))
+
+                // await GoogStockExchangeContract.sell(buyer1, sellAmount, stockPrice, sig, nonce, {from:buyer1});
+
+                // const stockBalanceAfter = await GoogStocksContract.balanceOf(buyer1);
+
+                // tetherBalanceBuyer1After = String(await TetherContract.balanceOf(buyer1))
+
+                //console.log("stockBalanceBefore", String(stockBalanceBefore));
+                // console.log("stockBalanceAfter", String(stockBalanceAfter));
+                // console.log("expectedCashOutput", String(expectedCashOutput));
+                //console.log("tetherBalanceBuyer1Before", String(tetherBalanceBuyer1Before));
+                // console.log("tetherBalanceBuyer1After", String(tetherBalanceBuyer1After));
+
+
+            })
+
         })
+
+        
 
 
     })

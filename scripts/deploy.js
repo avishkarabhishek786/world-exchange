@@ -32,7 +32,7 @@ async function main() {
   
   console.log("adminWallet deployed to:", adminWallet.address);
   console.log("stocksFactory deployed to:", stocksFactory.address);
-  console.log("verifySigner deployed to:", verifySigner.address);
+  //console.log("verifySigner deployed to:", verifySigner.address);
   console.log("tether deployed to:", tether.address);
 }
 

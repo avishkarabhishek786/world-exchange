@@ -32,7 +32,7 @@ contract StocksFactory is Ownable {
     function createStocks(string memory _name, string memory _symbol, address _usdc) external payable onlyOwner {
         // check for already existing token symbol as well
         require(address(stocksList[bytes(_symbol)].stocks)==address(0), "Stock already exists.");
-        IStocks newStock = new Stocks(_name, _symbol, address(this), owner());
+        IStocks newStock = new Stocks(_name, _symbol, address(this), getAdminWallet());
         IStockExchange tokenExchange = new StockExchange(address(newStock), _usdc, owner(), getAdminWallet());
         stocksList[bytes(_symbol)] = StockData(newStock, tokenExchange, true);
         emit NewStock(_name, _symbol, address(newStock), address(tokenExchange));

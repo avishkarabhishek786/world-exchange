@@ -7,9 +7,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./IStockExchange.sol";
 import "./VerifySigner.sol";
 
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 interface Istocks is IERC20 {
      function symbol() external view returns(string memory);
+     function decimals() external view returns (uint8);
      function mint(address to, uint amount) external returns (uint amountOut);
      function burn(address to, uint amount) external returns (uint amountOut);
 }
@@ -87,40 +88,48 @@ contract StockExchange is ReentrancyGuard, IStockExchange {
         return nonce;
     }
 
+    function expectedBuyOutput(uint paymentAmount, uint256 oraclePrice) view public returns (uint) {
+        return (paymentAmount*10**stock.decimals())/oraclePrice;
+    }
+
     /**
      * @notice Buy new stocks based on the paymentAmount i.e stablecoins sent and oracle price
+     * @param to address to send stocks to.
      * @param paymentAmount stablecoins being sent.
      * @param oraclePrice price returned by the oracle.
      * @param signature signature returned by the oracle.
      * @param nonce nonce returned by the oracle.
      */
-    function buy(uint paymentAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) 
+    function buy(address to, uint paymentAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) 
     external 
     nonReentrant 
     {
-        require(paymentAmount>=1 ether, "Ivalid paymentAmount"); 
+        require(paymentAmount>=1 ** stock.decimals(), "Invalid paymentAmount"); 
         require(buyNonces[msg.sender]==nonce, "Invalid buy nonce");
         buyNonces[msg.sender]++;
         usdc.transferFrom(msg.sender, adminWallet, paymentAmount);
-        stock.mint(msg.sender, paymentAmount/getStockPrice(oraclePrice,signature, nonce));  
+        uint price = getStockPrice(oraclePrice,signature, nonce);
+        uint output = expectedBuyOutput(paymentAmount, price);
+        stock.mint(to, output);  
     }
 
     /**
      * @notice Sell stocks based on the sellAmount sent and oracle price
+     * @param from address to sell stocks from.
      * @param sellAmount amount of stocks being sold.
      * @param oraclePrice price returned by the oracle.
      * @param signature signature returned by the oracle.
      * @param nonce nonce returned by the oracle.
      */
-    function sell(uint sellAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) 
+    function sell(address from, uint sellAmount, uint256 oraclePrice, bytes memory signature, uint256 nonce) 
     external 
     nonReentrant 
     verifyOracleSigner(oraclePrice, signature, nonce)
     {
-        require(sellAmount>=1 ether, "Invalid sellAmount");
+        require(sellAmount>=1 ** stock.decimals(), "Invalid sellAmount");
         require(sellNonces[msg.sender]==nonce, "Invalid sell nonce");
         
-        stock.burn(msg.sender, sellAmount);
+        stock.burn(from, sellAmount);
         
         // We cannot send USD from here because there can be shortage of it.
         // So a ticket is generated and user can get his USD from this ticket.
