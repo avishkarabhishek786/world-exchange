@@ -10,9 +10,6 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   // We get the contract to deploy
-//   const VerifySigner = await hre.ethers.getContractFactory("VerifySigner");
-//   const verifySigner = await VerifySigner.deploy();
-//   await verifySigner.deployed();
 
   const AdminWallet = await hre.ethers.getContractFactory("AdminWallet");
   const StocksFactory = await hre.ethers.getContractFactory(
@@ -24,7 +21,7 @@ async function main() {
   const adminWallet = await AdminWallet.deploy();
   await adminWallet.deployed();
 
-  const stocksFactory = await StocksFactory.deploy(adminWallet.address, {from:deployer});
+  const stocksFactory = await StocksFactory.deploy(adminWallet.address);
   await stocksFactory.deployed();
 
   const tether = await Tether.deploy();
@@ -32,7 +29,6 @@ async function main() {
   
   console.log("adminWallet deployed to:", adminWallet.address);
   console.log("stocksFactory deployed to:", stocksFactory.address);
-  //console.log("verifySigner deployed to:", verifySigner.address);
   console.log("tether deployed to:", tether.address);
 }
 
