@@ -140,7 +140,7 @@ contract('StockExchange', (accounts) => {
     
             it('buys GOOG stocks worth 100 Stablecoins', async () => {
 
-                const paymentAmount = 100 * DECIMALS;
+                const paymentAmount = 1000 * DECIMALS;
 
                 const stockBalanceBefore = await GoogStocksContract.balanceOf(buyer1);
 
@@ -170,25 +170,27 @@ contract('StockExchange', (accounts) => {
 
             it('sells GOOG stocks', async() => {
 
-                // const sellAmount = 1 * DECIMALS;
+                const sellAmount = 1 * DECIMALS;
 
-                // const stockBalanceBefore = await GoogStocksContract.balanceOf(buyer1);
-
-                // const expectedCashOutput = sellAmount * stockPrice;
-
-                // tetherBalanceBuyer1Before = String(await TetherContract.balanceOf(buyer1))
-
-                // await GoogStockExchangeContract.sell(buyer1, sellAmount, stockPrice, sig, nonce, {from:buyer1});
-
-                // const stockBalanceAfter = await GoogStocksContract.balanceOf(buyer1);
-
-                // tetherBalanceBuyer1After = String(await TetherContract.balanceOf(buyer1))
+                const stockBalanceBefore = await GoogStocksContract.balanceOf(buyer1);
 
                 //console.log("stockBalanceBefore", String(stockBalanceBefore));
-                // console.log("stockBalanceAfter", String(stockBalanceAfter));
-                // console.log("expectedCashOutput", String(expectedCashOutput));
-                //console.log("tetherBalanceBuyer1Before", String(tetherBalanceBuyer1Before));
-                // console.log("tetherBalanceBuyer1After", String(tetherBalanceBuyer1After));
+
+                const expectedCashOutput = sellAmount * stockPrice;
+
+                tetherBalanceBuyer1Before = String(await TetherContract.balanceOf(buyer1))
+
+                await GoogStockExchangeContract.sell(buyer1, sellAmount, stockPrice, sig, nonce, {from:buyer1});
+
+                const stockBalanceAfter = await GoogStocksContract.balanceOf(buyer1);
+
+                tetherBalanceBuyer1After = String(await TetherContract.balanceOf(buyer1))
+
+                console.log("stockBalanceBefore", String(stockBalanceBefore));
+                console.log("stockBalanceAfter", String(stockBalanceAfter));
+                console.log("expectedCashOutput", String(expectedCashOutput));
+                console.log("tetherBalanceBuyer1Before", String(tetherBalanceBuyer1Before));
+                console.log("tetherBalanceBuyer1After", String(tetherBalanceBuyer1After));
 
 
             })
